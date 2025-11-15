@@ -227,7 +227,7 @@ const Dashboard: React.FC = () => {
 
             {aiRecommendations.length > 0 && (
                 <div className="bg-gray-800/50 backdrop-blur-sm p-6 rounded-xl border border-gray-700/80 shadow-lg">
-                    <h3 className="text-lg font-semibold text-white mb-4">AI-Powered Recommendations</h3>
+                    <h3 className="text-lg font-semibold text-white mb-4">Operational Recommendations</h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                         {aiRecommendations.slice(0, 3).map(rec => {
                             const Icon = recommendationConfig[rec.category]?.icon || recommendationConfig.GENERAL.icon;

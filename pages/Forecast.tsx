@@ -12,7 +12,7 @@ const Forecast: React.FC = () => {
         <div className="space-y-6">
             <div className="bg-gray-800/50 backdrop-blur-sm p-6 rounded-xl border border-gray-700/80 shadow-lg">
                 <h2 className="text-2xl font-bold text-white mb-2">Surge Forecast & Analysis</h2>
-                <p className="text-gray-400">AI-powered national forecast updated every 30 seconds to predict potential patient surges.</p>
+                <p className="text-gray-400">National forecast updated based on simulation data to predict potential patient surges.</p>
             </div>
             
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -22,7 +22,7 @@ const Forecast: React.FC = () => {
                 
                 <div className="space-y-6">
                     <div className="bg-gray-800/50 backdrop-blur-sm p-6 rounded-xl border border-gray-700/80 shadow-lg">
-                        <h3 className="text-lg font-semibold text-white mb-4">AI Commentary</h3>
+                        <h3 className="text-lg font-semibold text-white mb-4">Forecast Analysis</h3>
                         <div className="bg-gray-900/50 p-4 rounded-lg min-h-[100px]">
                            <p className="text-sky-300">
                                {forecastCommentary}

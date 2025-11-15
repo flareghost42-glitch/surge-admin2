@@ -13,8 +13,7 @@
     "react-dom": "^19.2.0",
     "uuid": "^13.0.0",
     "recharts": "^3.4.1",
-    "framer-motion": "^11.5.0",
-    "@google/genai": "^1.29.1"
+    "framer-motion": "^11.5.0"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",

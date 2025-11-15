@@ -57,7 +57,7 @@ const initialState: AppState = {
   emergencies: [],
   beds: INITIAL_BEDS,
   forecast: INDIA_STATES.map(state => ({ region: state, riskLevel: Math.random() * 0.3 })),
-  forecastCommentary: "AI is analyzing surge patterns... A new forecast will be generated shortly.",
+  forecastCommentary: "Analyzing surge patterns... A new forecast will be generated shortly.",
   supplies: INITIAL_SUPPLIES,
   cctvEvents: [],
   iotDevices: monitoredPatients.flatMap(p => ([

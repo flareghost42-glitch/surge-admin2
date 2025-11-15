@@ -1,11 +1,8 @@
 import { useEffect, useRef } from 'react';
 import { useAppContext } from '../context/AppContext';
-import { SurgeLevel, EmergencySeverity, CCTVEventType, TaskStatus, AlertType, StaffStatus } from '../types';
+import { SurgeLevel, EmergencySeverity, CCTVEventType, TaskStatus, AlertType, StaffStatus, AIRecommendation } from '../types';
 import { WARDS, SIMULATION_INTERVALS, STAFF_NAMES } from '../constants';
 import { v4 as uuidv4 } from 'uuid';
-import { GoogleGenAI, Type } from "@google/genai";
-
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 const useSurgeEngine = () => {
   const { state, dispatch } = useAppContext();
@@ -41,98 +38,32 @@ const useSurgeEngine = () => {
   }, [dispatch]);
 
   useEffect(() => {
-    // AI-Powered Surge Prediction Simulation
-    const surgeInterval = setInterval(async () => {
+    // Surge Prediction Simulation
+    const surgeInterval = setInterval(() => {
       const currentState = stateRef.current;
-       // 1. Collect current hospital metrics
-      const occupiedBeds = currentState.beds.filter(b => b.status === 'Occupied').length;
-      const occupancyRate = occupiedBeds / currentState.beds.length;
-      const criticalEmergencies = currentState.emergencies.filter(e => e.severity === EmergencySeverity.Critical).length;
-      const highWorkloadStaff = currentState.staff.filter(s => s.workload > 80).length;
-      const recentInflow = currentState.patientInflow.slice(-5).reduce((acc, item) => acc + item.count, 0);
+      const newRiskLevels = currentState.forecast.map(f => ({
+          ...f,
+          riskLevel: Math.min(1, Math.max(0, f.riskLevel + (Math.random() - 0.5) * 0.05)),
+      }));
+      
+      const avgRisk = newRiskLevels.reduce((acc, f) => acc + f.riskLevel, 0) / newRiskLevels.length;
+      
+      let newCommentary = "National surge levels appear stable. Monitoring continues.";
+      if (avgRisk > 0.7) newCommentary = "Critical surge risk detected in multiple regions. Immediate action may be required.";
+      else if (avgRisk > 0.5) newCommentary = "High surge risk in several key areas. Hospital resources are being monitored closely.";
+      else if (avgRisk > 0.3) newCommentary = "Moderate surge risk observed. Preparedness levels should be reviewed.";
 
-      const prompt = `
-        Act as a public health data scientist running a national-level pandemic simulation. Your task is to generate a JSON object representing the predicted COVID-19 surge risk for all states and union territories of India for the next 24 hours, PLUS a brief, insightful commentary on the overall situation.
+      dispatch({ type: 'SET_FORECAST_COMMENTARY', payload: newCommentary });
+      dispatch({ type: 'UPDATE_FORECAST', payload: newRiskLevels });
 
-        You are receiving data from a key hospital. Use this data as a bellwether indicator for the national trend.
-
-        Current Key Hospital Data:
-        - Overall Surge Level Alert: ${currentState.surgeLevel}
-        - Bed Occupancy: ${(occupancyRate * 100).toFixed(1)}%
-        - Recent Patient Inflow Trend: ${recentInflow} new patients in the last 10 hours.
-        - Active Critical Emergencies: ${criticalEmergencies}
-        - Staff under High Workload (>80%): ${highWorkloadStaff} out of ${currentState.staff.length}
-
-        Based on this data, generate a plausible, dynamic forecast. Ensure some regions show elevated risk to create a realistic scenario for the dashboard.
-        
-        Also provide a 1-2 sentence commentary explaining the key drivers for the current forecast (e.g., "High patient inflow and critical occupancy at the bellwether hospital suggest an upward trend in major urban centers, particularly in the western regions. Proactive measures are advised.").
-
-        Your output MUST be a JSON object that adheres to the provided schema.
-      `;
-            
-      const responseSchema = {
-          type: Type.OBJECT,
-          properties: {
-              commentary: {
-                  type: Type.STRING,
-                  description: "A brief, insightful analysis of the surge forecast based on the provided hospital data."
-              },
-              forecasts: {
-                  type: Type.ARRAY,
-                  description: "An array of surge risk predictions for each Indian state and territory.",
-                  items: {
-                      type: Type.OBJECT,
-                      properties: {
-                          region: { type: Type.STRING, description: "The name of the Indian state or union territory." },
-                          riskLevel: { type: Type.NUMBER, description: "A numerical risk value between 0.0 and 1.0." }
-                      },
-                      required: ["region", "riskLevel"]
-                  }
-              }
-          },
-          required: ["commentary", "forecasts"]
-      };
-
-      try {
-        const response = await ai.models.generateContent({
-          model: 'gemini-2.5-flash',
-          contents: prompt,
-          config: {
-              responseMimeType: "application/json",
-              responseSchema: responseSchema,
-          }
-        });
-
-        const jsonResponse = JSON.parse(response.text);
-        const newRiskLevels = jsonResponse.forecasts;
-        const newCommentary = jsonResponse.commentary;
-
-        if (newCommentary) {
-            dispatch({ type: 'SET_FORECAST_COMMENTARY', payload: newCommentary });
-        }
-
-        if (Array.isArray(newRiskLevels) && newRiskLevels.length > 0) {
-            dispatch({ type: 'UPDATE_FORECAST', payload: newRiskLevels });
-
-            const avgRisk = newRiskLevels.reduce((acc, f) => acc + f.riskLevel, 0) / newRiskLevels.length;
-            let newSurgeLevel = SurgeLevel.Normal;
-            if (avgRisk > 0.7) newSurgeLevel = SurgeLevel.Critical;
-            else if (avgRisk > 0.5) newSurgeLevel = SurgeLevel.High;
-            else if (avgRisk > 0.3) newSurgeLevel = SurgeLevel.Moderate;
-            
-            if (newSurgeLevel !== currentState.surgeLevel) {
-                dispatch({ type: 'UPDATE_SURGE_LEVEL', payload: newSurgeLevel });
-                dispatch({ type: 'ADD_ALERT', payload: { id: uuidv4(), type: AlertType.Surge, severity: 'warning', message: `AI predicts surge level change to ${newSurgeLevel}`, timestamp: new Date() }});
-            }
-        }
-      } catch (error) {
-          console.error("AI Surge Prediction Error:", error);
-          // Fallback to random simulation if AI fails
-          const fallbackRiskLevels = currentState.forecast.map(f => ({
-              ...f,
-              riskLevel: Math.min(1, Math.max(0, f.riskLevel + (Math.random() - 0.5) * 0.05)),
-          }));
-          dispatch({ type: 'UPDATE_FORECAST', payload: fallbackRiskLevels });
+      let newSurgeLevel = SurgeLevel.Normal;
+      if (avgRisk > 0.7) newSurgeLevel = SurgeLevel.Critical;
+      else if (avgRisk > 0.5) newSurgeLevel = SurgeLevel.High;
+      else if (avgRisk > 0.3) newSurgeLevel = SurgeLevel.Moderate;
+      
+      if (newSurgeLevel !== currentState.surgeLevel) {
+          dispatch({ type: 'UPDATE_SURGE_LEVEL', payload: newSurgeLevel });
+          dispatch({ type: 'ADD_ALERT', payload: { id: uuidv4(), type: AlertType.Surge, severity: 'warning', message: `Simulation predicts surge level change to ${newSurgeLevel}`, timestamp: new Date() }});
       }
     }, SIMULATION_INTERVALS.SURGE_PREDICTION);
 
@@ -244,80 +175,28 @@ const useSurgeEngine = () => {
       }
     }, SIMULATION_INTERVALS.CCTV_EVENT);
     
-    // AI Recommendation Simulation
-    const recommendationInterval = setInterval(async () => {
-        const currentState = stateRef.current;
-        const occupiedBeds = currentState.beds.filter(b => b.status === 'Occupied').length;
-        const occupancyRate = occupiedBeds / currentState.beds.length;
-        const criticalEmergencies = currentState.emergencies.filter(e => e.severity === EmergencySeverity.Critical).length;
-        const highWorkloadStaff = currentState.staff.filter(s => s.workload > 80).length;
-        const recentInflow = currentState.patientInflow.slice(-5).reduce((acc, item) => acc + item.count, 0);
-        const lowSupplies = currentState.supplies.filter(s => s.level < s.criticalThreshold).map(s => s.name);
+    // Recommendation Simulation
+    const recommendationInterval = setInterval(() => {
+        const sampleRecommendations = [
+            { text: "High workload on nursing staff in ICU. Consider re-allocating staff from General Ward.", priority: 'high', category: 'STAFF' },
+            { text: "Bed occupancy nearing critical levels. Expedite patient discharge processes.", priority: 'high', category: 'PATIENT_FLOW' },
+            { text: "Oxygen supplies are below the 30% threshold. Initiate restocking procedure immediately.", priority: 'high', category: 'SUPPLY' },
+            { text: "Multiple IoT device alerts from Cardiology ward. Dispatch a technician to check equipment.", priority: 'medium', category: 'OPERATIONS' },
+            { text: "Review patient-to-staff ratios in the Emergency department due to increased inflow.", priority: 'medium', category: 'STAFF' },
+            { text: "Surgical gloves supply at 45%. Consider placing a new order soon.", priority: 'low', category: 'SUPPLY' }
+        ];
 
-        const prompt = `
-            Act as an AI operations analyst for a hospital. Based on the following real-time data, generate a JSON object containing 2-3 brief, actionable recommendations to improve hospital efficiency and patient care.
+        // Shuffle array and pick first 3
+        const shuffled = sampleRecommendations.sort(() => 0.5 - Math.random());
+        const newRecommendations: AIRecommendation[] = shuffled.slice(0, 3).map(rec => ({
+            id: uuidv4(),
+            text: rec.text,
+            priority: rec.priority as 'low' | 'medium' | 'high',
+            category: rec.category as 'STAFF' | 'PATIENT_FLOW' | 'SUPPLY' | 'OPERATIONS' | 'GENERAL',
+            createdAt: new Date(),
+        }));
 
-            Current Hospital Status:
-            - Overall Surge Level: ${currentState.surgeLevel}
-            - Bed Occupancy: ${(occupancyRate * 100).toFixed(1)}%
-            - Recent Patient Inflow: ${recentInflow} patients in the last 10 hours.
-            - Active Critical Emergencies: ${criticalEmergencies}
-            - Staff with High Workload (>80%): ${highWorkloadStaff} out of ${currentState.staff.length}
-            - Supplies running low: ${lowSupplies.join(', ') || 'None'}
-
-            For each recommendation, provide:
-            1. 'text': The recommendation itself (e.g., "Divert incoming non-critical patients to Ward B due to high ICU occupancy.").
-            2. 'priority': 'high', 'medium', or 'low'.
-            3. 'category': One of 'STAFF', 'PATIENT_FLOW', 'SUPPLY', 'OPERATIONS'.
-
-            Your output MUST be a JSON object conforming to the provided schema.
-        `;
-
-        const responseSchema = {
-            type: Type.OBJECT,
-            properties: {
-                recommendations: {
-                    type: Type.ARRAY,
-                    description: "An array of 2-3 operational recommendations.",
-                    items: {
-                        type: Type.OBJECT,
-                        properties: {
-                            text: { type: Type.STRING, description: "The actionable recommendation." },
-                            priority: { type: Type.STRING, description: "Priority level: high, medium, or low." },
-                            category: { type: Type.STRING, description: "Category: STAFF, PATIENT_FLOW, SUPPLY, or OPERATIONS." }
-                        },
-                        required: ["text", "priority", "category"]
-                    }
-                }
-            },
-            required: ["recommendations"]
-        };
-
-        try {
-            const response = await ai.models.generateContent({
-                model: 'gemini-2.5-flash',
-                contents: prompt,
-                config: {
-                    responseMimeType: "application/json",
-                    responseSchema: responseSchema,
-                }
-            });
-
-            const jsonResponse = JSON.parse(response.text);
-            const newRecommendations = jsonResponse.recommendations.map((rec: any) => ({
-                id: uuidv4(),
-                text: rec.text,
-                priority: rec.priority,
-                category: rec.category || 'GENERAL',
-                createdAt: new Date(),
-            }));
-
-            if (Array.isArray(newRecommendations)) {
-                dispatch({ type: 'SET_RECOMMENDations', payload: newRecommendations });
-            }
-        } catch (error) {
-            console.error("AI Recommendation Error:", error);
-        }
+        dispatch({ type: 'SET_RECOMMENDATIONS', payload: newRecommendations });
     }, SIMULATION_INTERVALS.RECOMMENDATION);
 
     // New Task Simulation
