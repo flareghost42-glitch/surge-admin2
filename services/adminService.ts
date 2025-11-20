@@ -6,13 +6,40 @@ import {
   IoTDevice
 } from '../types';
 
+// --- Helpers for Status Normalization ---
+
+const normalizeTaskStatus = (status: any): TaskStatus => {
+    if (!status) return TaskStatus.Pending;
+    const s = String(status).toLowerCase();
+    if (s === 'in-progress' || s === 'inprogress' || s === 'in_progress') return TaskStatus.InProgress;
+    if (s === 'completed') return TaskStatus.Completed;
+    return TaskStatus.Pending;
+};
+
+const normalizeStaffStatus = (status: any): StaffStatus => {
+    if (!status) return StaffStatus.Offline;
+    const s = String(status).toLowerCase();
+    if (s === 'active') return StaffStatus.Active;
+    if (s === 'busy') return StaffStatus.Busy;
+    return StaffStatus.Offline;
+};
+
+const normalizeBedStatus = (status: any): BedStatus => {
+    if (!status) return BedStatus.Free;
+    const s = String(status).toLowerCase();
+    if (s === 'occupied') return BedStatus.Occupied;
+    if (s === 'cleaning') return BedStatus.Cleaning;
+    if (s === 'reserved') return BedStatus.Reserved;
+    return BedStatus.Free;
+};
+
 // --- Mappers (DB Schema -> App Type) ---
 
 const mapStaff = (data: any): StaffMember => ({
   id: data.id,
-  name: data.name || 'Unknown Staff', // 'name' not strictly in schema provided (users table link needed?), assuming view or join
+  name: data.name || 'Unknown Staff', 
   role: data.role,
-  status: (data.status as StaffStatus) || StaffStatus.Offline,
+  status: normalizeStaffStatus(data.status),
   shiftEnd: new Date(), // specific column missing in schema provided, mocking for UI
   workload: data.tasks_completed ? Math.min(data.tasks_completed * 10, 100) : 0,
   tasksCompleted: data.tasks_completed || 0
@@ -36,7 +63,7 @@ const mapTask = (data: any): Task => ({
   id: data.id,
   title: data.title,
   description: `Room: ${data.room || 'N/A'}`,
-  status: (data.status as TaskStatus) || TaskStatus.Pending,
+  status: normalizeTaskStatus(data.status),
   assignedTo: data.assigned_to,
   createdAt: new Date(data.created_at),
   priority: data.priority
@@ -57,7 +84,7 @@ const mapEmergency = (data: any): Emergency => ({
 const mapBed = (data: any): Bed => ({
   id: String(data.id), // DB is int, App expects string
   ward: data.ward,
-  status: (data.status as BedStatus) || BedStatus.Free,
+  status: normalizeBedStatus(data.status),
   patientId: null // Need to join with patients to populate this efficiently
 });
 
