@@ -1,9 +1,8 @@
-
 import { supabase } from '../lib/supabase';
 import { 
   Patient, StaffMember, Task, Emergency, Bed, Supply, 
-  IoTReading, CCTVEvent, ForecastData, SurgeLevel,
-  StaffStatus, BedStatus, TaskStatus, EmergencySeverity, CCTVEventType
+  IoTReading, CCTVEvent, ForecastData, StaffStatus, 
+  BedStatus, TaskStatus, EmergencySeverity, CCTVEventType
 } from '../types';
 
 // --- Mappers (DB Snake_case -> App CamelCase) ---
@@ -111,25 +110,25 @@ export const getDashboardStats = async () => {
 export const getStaffStatus = async (): Promise<StaffMember[]> => {
   const { data, error } = await supabase.from('staff').select('*');
   if (error) throw error;
-  return data.map(mapStaff);
+  return (data || []).map(mapStaff);
 };
 
 export const getPatients = async (): Promise<Patient[]> => {
   const { data, error } = await supabase.from('patients').select('*');
   if (error) throw error;
-  return data.map(mapPatient);
+  return (data || []).map(mapPatient);
 };
 
 export const getSupplies = async (): Promise<Supply[]> => {
   const { data, error } = await supabase.from('supplies').select('*');
   if (error) throw error;
-  return data.map(mapSupply);
+  return (data || []).map(mapSupply);
 };
 
 export const getBeds = async (): Promise<Bed[]> => {
   const { data, error } = await supabase.from('beds').select('*').order('id');
   if (error) throw error;
-  return data.map(mapBed);
+  return (data || []).map(mapBed);
 };
 
 export const getEmergencies = async (): Promise<Emergency[]> => {
@@ -139,7 +138,7 @@ export const getEmergencies = async (): Promise<Emergency[]> => {
     .order('timestamp', { ascending: false })
     .limit(50);
   if (error) throw error;
-  return data.map(mapEmergency);
+  return (data || []).map(mapEmergency);
 };
 
 export const getTasks = async (): Promise<Task[]> => {
@@ -149,13 +148,13 @@ export const getTasks = async (): Promise<Task[]> => {
     .order('created_at', { ascending: false })
     .limit(100);
   if (error) throw error;
-  return data.map(mapTask);
+  return (data || []).map(mapTask);
 };
 
 export const getSurgePredictions = async (): Promise<ForecastData[]> => {
   const { data, error } = await supabase.from('forecasts').select('*');
   if (error) throw error;
-  return data.map(mapForecast);
+  return (data || []).map(mapForecast);
 };
 
 // --- Realtime Subscriptions ---
@@ -203,7 +202,6 @@ export const subscribeToSupplies = (callback: (supplies: Supply[]) => void) => {
   return supabase
     .channel('supplies-channel')
     .on('postgres_changes', { event: '*', schema: 'public', table: 'supplies' }, async () => {
-      // Reload all supplies on change to keep levels accurate
       const supplies = await getSupplies();
       callback(supplies);
     })
