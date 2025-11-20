@@ -3,7 +3,7 @@ import { Patient, StaffMember, Bed, Supply, BedStatus, StaffStatus } from './typ
 export const STAFF_NAMES = ["Dr. Smith", "Dr. Jones", "Nurse Sarah", "Nurse Mike", "Dr. Chen", "Nurse Emily", "Dr. Patel", "Nurse David"];
 export const PATIENT_NAMES = ["John Doe", "Jane Smith", "Robert Brown", "Emily White", "Michael Green", "Jessica Black", "Chris Blue", "Olivia Grey", "William Red", "Sophia Purple"];
 export const WARDS = ["General", "ICU", "Maternity", "Pediatrics", "Cardiology"];
-export const CCTV_VIDEO_FEEDS = ["/videos/ward1.mp4", "https://www.shutterstock.com/shutterstock/videos/3654955493/preview/stock-footage-high-angle-cctv-footage-with-a-busy-hallway-with-reception-desk-of-a-hospital-building-diverse.mp4", "/videos/icu1.mp4"];
+export const CCTV_VIDEO_FEEDS = ["https://www.shutterstock.com/shutterstock/videos/3654955493/preview/stock-footage-high-angle-cctv-footage-with-a-busy-hallway-with-reception-desk-of-a-hospital-building-diverse.mp4", "https://www.shutterstock.com/shutterstock/videos/3654955493/preview/stock-footage-high-angle-cctv-footage-with-a-busy-hallway-with-reception-desk-of-a-hospital-building-diverse.mp4", "https://www.shutterstock.com/shutterstock/videos/3654955493/preview/stock-footage-high-angle-cctv-footage-with-a-busy-hallway-with-reception-desk-of-a-hospital-building-diverse.mp4"];
 
 export const INITIAL_STAFF: StaffMember[] = STAFF_NAMES.map((name, i) => ({
   id: `staff-${i}`,

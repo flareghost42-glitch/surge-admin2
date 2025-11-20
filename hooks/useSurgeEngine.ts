@@ -1,8 +1,9 @@
 import { useEffect, useRef } from 'react';
 import { useAppContext } from '../context/AppContext';
-import { SurgeLevel, EmergencySeverity, CCTVEventType, TaskStatus, AlertType, StaffStatus, AIRecommendation } from '../types';
+import { SurgeLevel, EmergencySeverity, CCTVEventType, TaskStatus, AlertType, StaffStatus, AIRecommendation, BedStatus } from '../types';
 import { WARDS, SIMULATION_INTERVALS, STAFF_NAMES } from '../constants';
 import { v4 as uuidv4 } from 'uuid';
+import { GoogleGenAI, Type } from '@google/genai';
 
 const useSurgeEngine = () => {
   const { state, dispatch } = useAppContext();
@@ -37,25 +38,133 @@ const useSurgeEngine = () => {
     return () => clearInterval(masterTick);
   }, [dispatch]);
 
+  const runAgenticAnalysis = async () => {
+    const currentState = stateRef.current;
+    if (!currentState.agenticAiEnabled || !process.env.API_KEY) {
+        runSimulationFallback();
+        return;
+    }
+
+    const occupiedBeds = currentState.beds.filter(b => b.status === BedStatus.Occupied).length;
+    const bedOccupancy = (occupiedBeds / currentState.beds.length) * 100;
+    const avgWorkload = currentState.staff.reduce((acc, s) => acc + s.workload, 0) / currentState.staff.length;
+    const criticalEmergencies = currentState.emergencies.filter(e => e.severity === EmergencySeverity.Critical).length;
+    const criticalSupplies = currentState.supplies.filter(s => s.level < s.criticalThreshold).map(s => `${s.name}: ${s.level.toFixed(0)}%`);
+    const highRiskRegions = currentState.forecast.filter(f => f.riskLevel > 0.6).map(f => f.region);
+    
+    const contextData = {
+        "hospitalSurgeLevel": currentState.surgeLevel,
+        "bedOccupancy": `${bedOccupancy.toFixed(1)}%`,
+        "averageStaffWorkload": `${avgWorkload.toFixed(1)}%`,
+        "criticalEmergencies": criticalEmergencies,
+        "criticalSupplyLevels": criticalSupplies,
+        "pendingTasks": currentState.tasks.length,
+        "nationalSurgeForecast": {
+           "averageRisk": `${(currentState.forecast.reduce((acc, f) => acc + f.riskLevel, 0) / currentState.forecast.length * 100).toFixed(1)}%`,
+           "highRiskRegions": highRiskRegions
+        }
+    };
+    
+    try {
+        const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+
+        const schema = {
+            type: Type.OBJECT,
+            properties: {
+                forecastCommentary: {
+                    type: Type.STRING,
+                    description: "A 1-2 sentence analysis of the national surge risk."
+                },
+                recommendations: {
+                    type: Type.ARRAY,
+                    description: "An array of exactly 3 actionable, prioritized recommendations.",
+                    items: {
+                        type: Type.OBJECT,
+                        properties: {
+                            text: { type: Type.STRING, description: "The recommendation text." },
+                            priority: { type: Type.STRING, description: "Priority: 'low', 'medium', or 'high'." },
+                            category: { type: Type.STRING, description: "Category: 'STAFF', 'PATIENT_FLOW', 'SUPPLY', 'OPERATIONS', or 'GENERAL'." },
+                        }
+                    }
+                }
+            }
+        };
+
+        const systemInstruction = `You are 'SurgeMind', an advanced AI operations agent for a hospital. Your goal is to analyze real-time data and provide actionable insights to the hospital administrator. Based on the provided JSON data, return a JSON object that strictly adheres to the provided schema. Be concise, professional, and data-driven.`;
+        const userPrompt = `Analyze the following hospital status data: ${JSON.stringify(contextData)}`;
+
+        const response = await ai.models.generateContent({
+            model: currentState.llmModel,
+            contents: userPrompt,
+            config: {
+                systemInstruction: systemInstruction,
+                responseMimeType: "application/json",
+                responseSchema: schema,
+            },
+        });
+        
+        const content = JSON.parse(response.text);
+
+        if (content.forecastCommentary) {
+            dispatch({ type: 'SET_FORECAST_COMMENTARY', payload: content.forecastCommentary });
+        }
+        if (content.recommendations && Array.isArray(content.recommendations)) {
+            const newRecommendations: AIRecommendation[] = content.recommendations.slice(0, 3).map((rec: any) => ({
+                id: uuidv4(),
+                text: rec.text || "Invalid recommendation format",
+                priority: rec.priority || 'medium',
+                category: rec.category || 'GENERAL',
+                createdAt: new Date(),
+            }));
+            dispatch({ type: 'SET_RECOMMENDATIONS', payload: newRecommendations });
+        }
+
+    } catch (error) {
+        console.error("Failed to generate content with Gemini:", error);
+        dispatch({ type: 'ADD_ALERT', payload: { id: uuidv4(), type: AlertType.Emergency, severity: 'critical', message: `AI Agent Error: Failed to retrieve analysis.`, timestamp: new Date() }});
+        runSimulationFallback();
+    }
+  };
+
+  const runSimulationFallback = () => {
+    const currentState = stateRef.current;
+    const avgRisk = currentState.forecast.reduce((acc, f) => acc + f.riskLevel, 0) / currentState.forecast.length;
+      
+    let newCommentary = "National surge levels appear stable. Monitoring continues.";
+    if (avgRisk > 0.7) newCommentary = "Critical surge risk detected in multiple regions. Immediate action may be required.";
+    else if (avgRisk > 0.5) newCommentary = "High surge risk in several key areas. Hospital resources are being monitored closely.";
+    else if (avgRisk > 0.3) newCommentary = "Moderate surge risk observed. Preparedness levels should be reviewed.";
+
+    dispatch({ type: 'SET_FORECAST_COMMENTARY', payload: newCommentary });
+
+    const sampleRecommendations = [
+        { text: "High workload on nursing staff in ICU. Consider re-allocating staff from General Ward.", priority: 'high', category: 'STAFF' },
+        { text: "Bed occupancy nearing critical levels. Expedite patient discharge processes.", priority: 'high', category: 'PATIENT_FLOW' },
+        { text: "Oxygen supplies are below the 30% threshold. Initiate restocking procedure immediately.", priority: 'high', category: 'SUPPLY' },
+    ];
+    const newRecommendations: AIRecommendation[] = sampleRecommendations.map(rec => ({
+        id: uuidv4(),
+        text: rec.text,
+        priority: rec.priority as 'low' | 'medium' | 'high',
+        category: rec.category as 'STAFF' | 'PATIENT_FLOW' | 'SUPPLY' | 'OPERATIONS' | 'GENERAL',
+        createdAt: new Date(),
+    }));
+    dispatch({ type: 'SET_RECOMMENDATIONS', payload: newRecommendations });
+  };
+
+
   useEffect(() => {
-    // Surge Prediction Simulation
-    const surgeInterval = setInterval(() => {
+    // Surge Prediction & Agentic AI Interval
+    const agentInterval = setInterval(() => {
       const currentState = stateRef.current;
       const newRiskLevels = currentState.forecast.map(f => ({
           ...f,
           riskLevel: Math.min(1, Math.max(0, f.riskLevel + (Math.random() - 0.5) * 0.05)),
       }));
       
-      const avgRisk = newRiskLevels.reduce((acc, f) => acc + f.riskLevel, 0) / newRiskLevels.length;
-      
-      let newCommentary = "National surge levels appear stable. Monitoring continues.";
-      if (avgRisk > 0.7) newCommentary = "Critical surge risk detected in multiple regions. Immediate action may be required.";
-      else if (avgRisk > 0.5) newCommentary = "High surge risk in several key areas. Hospital resources are being monitored closely.";
-      else if (avgRisk > 0.3) newCommentary = "Moderate surge risk observed. Preparedness levels should be reviewed.";
-
-      dispatch({ type: 'SET_FORECAST_COMMENTARY', payload: newCommentary });
       dispatch({ type: 'UPDATE_FORECAST', payload: newRiskLevels });
-
+      
+      const avgRisk = newRiskLevels.reduce((acc, f) => acc + f.riskLevel, 0) / newRiskLevels.length;
       let newSurgeLevel = SurgeLevel.Normal;
       if (avgRisk > 0.7) newSurgeLevel = SurgeLevel.Critical;
       else if (avgRisk > 0.5) newSurgeLevel = SurgeLevel.High;
@@ -65,6 +174,9 @@ const useSurgeEngine = () => {
           dispatch({ type: 'UPDATE_SURGE_LEVEL', payload: newSurgeLevel });
           dispatch({ type: 'ADD_ALERT', payload: { id: uuidv4(), type: AlertType.Surge, severity: 'warning', message: `Simulation predicts surge level change to ${newSurgeLevel}`, timestamp: new Date() }});
       }
+
+      runAgenticAnalysis();
+
     }, SIMULATION_INTERVALS.SURGE_PREDICTION);
 
     // New Patient Inflow Simulation
@@ -125,7 +237,6 @@ const useSurgeEngine = () => {
           dispatch({ type: 'ADD_ALERT', payload: { id: uuidv4(), type: AlertType.IoT, severity: 'critical', message: alertMessage, timestamp: new Date() }});
         }
         
-        // Simulate device status changes
         if(Math.random() < 0.01) {
             const newStatus = device.status === 'online' ? 'offline' : 'online';
             dispatch({ type: 'UPDATE_IOT_STATUS', payload: { deviceId: device.id, status: newStatus } });
@@ -147,7 +258,6 @@ const useSurgeEngine = () => {
       const cameraId = `CAM-${Math.floor(Math.random() * 10) + 1}`;
       
       let detectionData;
-      // Force person detection for main feeds occasionally
       if (['Waiting Room', 'Hospital Entry'].includes(location) && Math.random() > 0.3) {
           type = CCTVEventType.PersonDetected;
       }
@@ -169,35 +279,10 @@ const useSurgeEngine = () => {
         payload: { id: uuidv4(), cameraId, location, type, timestamp: new Date(), clipUrl: '#', riskScore: Math.random(), detectionData }
       });
       
-      // Don't create a separate alert for every person detection to avoid spam, only for more critical events.
       if (type !== CCTVEventType.PersonDetected) {
           dispatch({ type: 'ADD_ALERT', payload: { id: uuidv4(), type: AlertType.CCTV, severity: 'warning', message: `${type} detected at ${location}`, timestamp: new Date() }});
       }
     }, SIMULATION_INTERVALS.CCTV_EVENT);
-    
-    // Recommendation Simulation
-    const recommendationInterval = setInterval(() => {
-        const sampleRecommendations = [
-            { text: "High workload on nursing staff in ICU. Consider re-allocating staff from General Ward.", priority: 'high', category: 'STAFF' },
-            { text: "Bed occupancy nearing critical levels. Expedite patient discharge processes.", priority: 'high', category: 'PATIENT_FLOW' },
-            { text: "Oxygen supplies are below the 30% threshold. Initiate restocking procedure immediately.", priority: 'high', category: 'SUPPLY' },
-            { text: "Multiple IoT device alerts from Cardiology ward. Dispatch a technician to check equipment.", priority: 'medium', category: 'OPERATIONS' },
-            { text: "Review patient-to-staff ratios in the Emergency department due to increased inflow.", priority: 'medium', category: 'STAFF' },
-            { text: "Surgical gloves supply at 45%. Consider placing a new order soon.", priority: 'low', category: 'SUPPLY' }
-        ];
-
-        // Shuffle array and pick first 3
-        const shuffled = sampleRecommendations.sort(() => 0.5 - Math.random());
-        const newRecommendations: AIRecommendation[] = shuffled.slice(0, 3).map(rec => ({
-            id: uuidv4(),
-            text: rec.text,
-            priority: rec.priority as 'low' | 'medium' | 'high',
-            category: rec.category as 'STAFF' | 'PATIENT_FLOW' | 'SUPPLY' | 'OPERATIONS' | 'GENERAL',
-            createdAt: new Date(),
-        }));
-
-        dispatch({ type: 'SET_RECOMMENDATIONS', payload: newRecommendations });
-    }, SIMULATION_INTERVALS.RECOMMENDATION);
 
     // New Task Simulation
     const taskInterval = setInterval(() => {
@@ -210,12 +295,11 @@ const useSurgeEngine = () => {
     }, SIMULATION_INTERVALS.NEW_TASK);
 
     return () => {
-      clearInterval(surgeInterval);
+      clearInterval(agentInterval);
       clearInterval(inflowInterval);
       clearInterval(emergencyInterval);
       clearInterval(iotInterval);
       clearInterval(cctvInterval);
-      clearInterval(recommendationInterval);
       clearInterval(taskInterval);
     };
   }, [dispatch]); 

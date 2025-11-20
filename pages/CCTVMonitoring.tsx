@@ -67,13 +67,14 @@ const CCTVMonitoring: React.FC = () => {
     const { state } = useAppContext();
     const { cctvEvents } = state;
 
+    const remoteVideoUrl = 'https://www.shutterstock.com/shutterstock/videos/3654955493/preview/stock-footage-high-angle-cctv-footage-with-a-busy-hallway-with-reception-desk-of-a-hospital-building-diverse.mp4';
     const cameraFeeds = [
-        { id: 'CAM-1', location: 'ICU Ward A', video: '/videos/icu1.mp4' },
-        { id: 'CAM-2', location: 'Hallway Section 3', video: 'https://www.shutterstock.com/shutterstock/videos/3654955493/preview/stock-footage-high-angle-cctv-footage-with-a-busy-hallway-with-reception-desk-of-a-hospital-building-diverse.mp4' },
-        { id: 'CAM-3', location: 'General Ward B', video: '/videos/ward1.mp4' },
-        { id: 'CAM-4', location: 'Emergency Entrance', video: 'https://www.shutterstock.com/shutterstock/videos/3654955493/preview/stock-footage-high-angle-cctv-footage-with-a-busy-hallway-with-reception-desk-of-a-hospital-building-diverse.mp4' },
-        { id: 'CAM-5', location: 'ICU Ward C', video: '/videos/icu1.mp4' },
-        { id: 'CAM-6', location: 'Pediatrics Hallway', video: '/videos/ward1.mp4' },
+        { id: 'CAM-1', location: 'ICU Ward A', video: remoteVideoUrl },
+        { id: 'CAM-2', location: 'Hallway Section 3', video: remoteVideoUrl },
+        { id: 'CAM-3', location: 'General Ward B', video: remoteVideoUrl },
+        { id: 'CAM-4', location: 'Emergency Entrance', video: remoteVideoUrl },
+        { id: 'CAM-5', location: 'ICU Ward C', video: remoteVideoUrl },
+        { id: 'CAM-6', location: 'Pediatrics Hallway', video: remoteVideoUrl },
     ];
 
     const recentEventsByCamera = cctvEvents.reduce((acc, event) => {

@@ -1,11 +1,8 @@
 import React from 'react';
-// FIX: Added XAxis and YAxis to the import from recharts.
 import { AreaChart, Area, CartesianGrid, Tooltip, ResponsiveContainer, XAxis, YAxis } from 'recharts';
 import { useAppContext } from '../context/AppContext';
 import StatCard from '../components/StatCard';
-// FIX: Imported icons from components/Icons.tsx instead of types.ts. IotIcon is used. CctvIcon was imported but not used, so it's removed.
 import { PatientIcon, BedIcon, TaskIcon, EmergencyIcon, IotIcon, StaffIcon, SupplyIcon, SettingsIcon } from '../components/Icons';
-// FIX: Consolidated and corrected type imports.
 import { AlertType, Alert, SurgeLevel, BedStatus } from '../types';
 import { motion } from 'framer-motion';
 
@@ -18,7 +15,7 @@ const CCTVMiniFeed: React.FC<{ event?: any }> = ({ event }) => {
     return (
         <div className={`relative bg-black aspect-video rounded-md p-1.5 text-center overflow-hidden border-2 ${riskColor}`}>
             <video
-                src={event ? 'https://www.shutterstock.com/shutterstock/videos/3654955493/preview/stock-footage-high-angle-cctv-footage-with-a-busy-hallway-with-reception-desk-of-a-hospital-building-diverse.mp4' : '/videos/ward1.mp4'}
+                src={'https://www.shutterstock.com/shutterstock/videos/3654955493/preview/stock-footage-high-angle-cctv-footage-with-a-busy-hallway-with-reception-desk-of-a-hospital-building-diverse.mp4'}
                 autoPlay
                 loop
                 muted
@@ -114,12 +111,6 @@ const MainCCTVFeed: React.FC<{ location: string; videoSrc: string, event?: any }
 
 const AlertsFeed: React.FC<{ alerts: Alert[] }> = ({ alerts }) => {
     const alertConfig = {
-        // FIX: Removed invalid AlertType members 'Critical' and 'High' which do not exist in the AlertType enum.
-        [AlertType.IoT]: { icon: '💓', color: 'text-red-400' },
-        [AlertType.CCTV]: { icon: '📹', color: 'text-yellow-400' },
-        [AlertType.Surge]: { icon: '📈', color: 'text-orange-400' },
-        [AlertType.Supply]: { icon: '📦', color: 'text-blue-400' },
-        [AlertType.Emergency]: { icon: '🚨', color: 'text-red-300' },
         info: { icon: 'ℹ️', color: 'text-sky-400' },
         warning: { icon: '⚠️', color: 'text-yellow-400' },
         critical: { icon: '🔥', color: 'text-red-400' },
@@ -256,7 +247,7 @@ const Dashboard: React.FC = () => {
             <div className="bg-gray-800/50 backdrop-blur-sm p-6 rounded-xl border border-gray-700/80 shadow-lg">
                 <h3 className="text-lg font-semibold text-white mb-4">Main CCTV Feeds</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <MainCCTVFeed location="Waiting Room" videoSrc="/videos/ward1.mp4" event={latestWaitingRoomEvent} />
+                    <MainCCTVFeed location="Waiting Room" videoSrc="https://www.shutterstock.com/shutterstock/videos/3654955493/preview/stock-footage-high-angle-cctv-footage-with-a-busy-hallway-with-reception-desk-of-a-hospital-building-diverse.mp4" event={latestWaitingRoomEvent} />
                     <MainCCTVFeed location="Hospital Entry" videoSrc="https://www.shutterstock.com/shutterstock/videos/3654955493/preview/stock-footage-high-angle-cctv-footage-with-a-busy-hallway-with-reception-desk-of-a-hospital-building-diverse.mp4" event={latestEntryEvent} />
                 </div>
             </div>

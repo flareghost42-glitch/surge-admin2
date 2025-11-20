@@ -1,5 +1,5 @@
-
 import React from 'react';
+import { useAppContext } from '../context/AppContext';
 
 const GenericPage: React.FC<{ title: string }> = ({ title }) => {
   return (
@@ -40,6 +40,3 @@ const SettingsComponent: React.FC = () => {
   )
 }
 export const Settings: React.FC = () => <SettingsComponent />;
-
-// We need to import useAppContext for settings
-import { useAppContext } from '../context/AppContext';

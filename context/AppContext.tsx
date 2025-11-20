@@ -25,6 +25,8 @@ interface AppState {
   surgeLevel: SurgeLevel;
   patientInflow: { time: string; count: number }[];
   theme: 'dark' | 'light';
+  llmModel: string;
+  agenticAiEnabled: boolean;
 }
 
 type AppAction = 
@@ -45,9 +47,13 @@ type AppAction =
   | { type: 'UPDATE_STAFF'; payload: StaffMember[] }
   | { type: 'UPDATE_IOT_STATUS'; payload: { deviceId: string; status: 'online' | 'offline' | 'error' } }
   | { type: 'UPDATE_SURGE_LEVEL'; payload: SurgeLevel }
-  | { type: 'TOGGLE_THEME' };
+  | { type: 'TOGGLE_THEME' }
+  | { type: 'SET_AGENT_CONFIG'; payload: { enabled: boolean; model: string } };
 
 const monitoredPatients = INITIAL_PATIENTS.filter(p => p.bedId).slice(0, 5);
+
+const savedModel = localStorage.getItem('llmModel');
+const savedAgentEnabled = localStorage.getItem('agenticAiEnabled');
 
 const initialState: AppState = {
   patients: INITIAL_PATIENTS,
@@ -72,6 +78,8 @@ const initialState: AppState = {
   surgeLevel: SurgeLevel.Normal,
   patientInflow: Array.from({ length: 12 }, (_, i) => ({ time: `${i * 2}:00`, count: Math.floor(Math.random() * 5) })),
   theme: 'dark',
+  llmModel: savedModel || 'gemini-2.5-flash',
+  agenticAiEnabled: savedAgentEnabled ? JSON.parse(savedAgentEnabled) : false,
 };
 
 const appReducer = (state: AppState, action: AppAction): AppState => {
@@ -137,6 +145,15 @@ const appReducer = (state: AppState, action: AppAction): AppState => {
         document.documentElement.classList.remove('dark');
       }
       return { ...state, theme: newTheme };
+    }
+    case 'SET_AGENT_CONFIG': {
+        localStorage.setItem('agenticAiEnabled', JSON.stringify(action.payload.enabled));
+        localStorage.setItem('llmModel', action.payload.model);
+        return {
+            ...state,
+            agenticAiEnabled: action.payload.enabled,
+            llmModel: action.payload.model,
+        };
     }
     default:
       return state;
