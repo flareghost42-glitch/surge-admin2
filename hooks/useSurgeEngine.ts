@@ -3,7 +3,6 @@ import { useAppContext } from '../context/AppContext';
 import { SurgeLevel, EmergencySeverity, CCTVEventType, TaskStatus, AlertType, StaffStatus, AIRecommendation, BedStatus } from '../types';
 import { WARDS, SIMULATION_INTERVALS, STAFF_NAMES } from '../constants';
 import { v4 as uuidv4 } from 'uuid';
-import { GoogleGenAI, Type } from '@google/genai';
 
 const useSurgeEngine = () => {
   const { state, dispatch } = useAppContext();
@@ -38,95 +37,8 @@ const useSurgeEngine = () => {
     return () => clearInterval(masterTick);
   }, [dispatch]);
 
-  const runAgenticAnalysis = async () => {
-    const currentState = stateRef.current;
-    if (!currentState.agenticAiEnabled || !process.env.API_KEY) {
-        runSimulationFallback();
-        return;
-    }
 
-    const occupiedBeds = currentState.beds.filter(b => b.status === BedStatus.Occupied).length;
-    const bedOccupancy = (occupiedBeds / currentState.beds.length) * 100;
-    const avgWorkload = currentState.staff.reduce((acc, s) => acc + s.workload, 0) / currentState.staff.length;
-    const criticalEmergencies = currentState.emergencies.filter(e => e.severity === EmergencySeverity.Critical).length;
-    const criticalSupplies = currentState.supplies.filter(s => s.level < s.criticalThreshold).map(s => `${s.name}: ${s.level.toFixed(0)}%`);
-    const highRiskRegions = currentState.forecast.filter(f => f.riskLevel > 0.6).map(f => f.region);
-    
-    const contextData = {
-        "hospitalSurgeLevel": currentState.surgeLevel,
-        "bedOccupancy": `${bedOccupancy.toFixed(1)}%`,
-        "averageStaffWorkload": `${avgWorkload.toFixed(1)}%`,
-        "criticalEmergencies": criticalEmergencies,
-        "criticalSupplyLevels": criticalSupplies,
-        "pendingTasks": currentState.tasks.length,
-        "nationalSurgeForecast": {
-           "averageRisk": `${(currentState.forecast.reduce((acc, f) => acc + f.riskLevel, 0) / currentState.forecast.length * 100).toFixed(1)}%`,
-           "highRiskRegions": highRiskRegions
-        }
-    };
-    
-    try {
-        const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-
-        const schema = {
-            type: Type.OBJECT,
-            properties: {
-                forecastCommentary: {
-                    type: Type.STRING,
-                    description: "A 1-2 sentence analysis of the national surge risk."
-                },
-                recommendations: {
-                    type: Type.ARRAY,
-                    description: "An array of exactly 3 actionable, prioritized recommendations.",
-                    items: {
-                        type: Type.OBJECT,
-                        properties: {
-                            text: { type: Type.STRING, description: "The recommendation text." },
-                            priority: { type: Type.STRING, description: "Priority: 'low', 'medium', or 'high'." },
-                            category: { type: Type.STRING, description: "Category: 'STAFF', 'PATIENT_FLOW', 'SUPPLY', 'OPERATIONS', or 'GENERAL'." },
-                        }
-                    }
-                }
-            }
-        };
-
-        const systemInstruction = `You are 'SurgeMind', an advanced AI operations agent for a hospital. Your goal is to analyze real-time data and provide actionable insights to the hospital administrator. Based on the provided JSON data, return a JSON object that strictly adheres to the provided schema. Be concise, professional, and data-driven.`;
-        const userPrompt = `Analyze the following hospital status data: ${JSON.stringify(contextData)}`;
-
-        const response = await ai.models.generateContent({
-            model: currentState.llmModel,
-            contents: userPrompt,
-            config: {
-                systemInstruction: systemInstruction,
-                responseMimeType: "application/json",
-                responseSchema: schema,
-            },
-        });
-        
-        const content = JSON.parse(response.text);
-
-        if (content.forecastCommentary) {
-            dispatch({ type: 'SET_FORECAST_COMMENTARY', payload: content.forecastCommentary });
-        }
-        if (content.recommendations && Array.isArray(content.recommendations)) {
-            const newRecommendations: AIRecommendation[] = content.recommendations.slice(0, 3).map((rec: any) => ({
-                id: uuidv4(),
-                text: rec.text || "Invalid recommendation format",
-                priority: rec.priority || 'medium',
-                category: rec.category || 'GENERAL',
-                createdAt: new Date(),
-            }));
-            dispatch({ type: 'SET_RECOMMENDATIONS', payload: newRecommendations });
-        }
-
-    } catch (error) {
-        console.error("Failed to generate content with Gemini:", error);
-        dispatch({ type: 'ADD_ALERT', payload: { id: uuidv4(), type: AlertType.Emergency, severity: 'critical', message: `AI Agent Error: Failed to retrieve analysis.`, timestamp: new Date() }});
-        runSimulationFallback();
-    }
-  };
-
-  const runSimulationFallback = () => {
+  const runSimulationLogic = () => {
     const currentState = stateRef.current;
     const avgRisk = currentState.forecast.reduce((acc, f) => acc + f.riskLevel, 0) / currentState.forecast.length;
       
@@ -137,11 +49,22 @@ const useSurgeEngine = () => {
 
     dispatch({ type: 'SET_FORECAST_COMMENTARY', payload: newCommentary });
 
-    const sampleRecommendations = [
-        { text: "High workload on nursing staff in ICU. Consider re-allocating staff from General Ward.", priority: 'high', category: 'STAFF' },
-        { text: "Bed occupancy nearing critical levels. Expedite patient discharge processes.", priority: 'high', category: 'PATIENT_FLOW' },
-        { text: "Oxygen supplies are below the 30% threshold. Initiate restocking procedure immediately.", priority: 'high', category: 'SUPPLY' },
-    ];
+    // Randomly generate recommendations based on simple rules
+    const sampleRecommendations = [];
+    
+    if (Math.random() > 0.7) {
+        sampleRecommendations.push({ text: "High workload on nursing staff in ICU. Consider re-allocating staff from General Ward.", priority: 'high', category: 'STAFF' });
+    }
+    if (Math.random() > 0.7) {
+        sampleRecommendations.push({ text: "Bed occupancy nearing critical levels. Expedite patient discharge processes.", priority: 'high', category: 'PATIENT_FLOW' });
+    }
+    if (Math.random() > 0.7) {
+        sampleRecommendations.push({ text: "Oxygen supplies are below the 30% threshold. Initiate restocking procedure immediately.", priority: 'high', category: 'SUPPLY' });
+    }
+    if(sampleRecommendations.length === 0) {
+        sampleRecommendations.push({ text: "Operations are running within normal parameters.", priority: 'low', category: 'OPERATIONS' });
+    }
+
     const newRecommendations: AIRecommendation[] = sampleRecommendations.map(rec => ({
         id: uuidv4(),
         text: rec.text,
@@ -175,7 +98,7 @@ const useSurgeEngine = () => {
           dispatch({ type: 'ADD_ALERT', payload: { id: uuidv4(), type: AlertType.Surge, severity: 'warning', message: `Simulation predicts surge level change to ${newSurgeLevel}`, timestamp: new Date() }});
       }
 
-      runAgenticAnalysis();
+      runSimulationLogic();
 
     }, SIMULATION_INTERVALS.SURGE_PREDICTION);
 
