@@ -1,9 +1,15 @@
-import React, { createContext, useReducer, useContext, Dispatch } from 'react';
+import React, { createContext, useReducer, useContext, Dispatch, useEffect } from 'react';
 import { 
   Patient, StaffMember, Task, Appointment, Emergency, Bed, 
   ForecastData, Supply, CCTVEvent, IoTDevice, IoTReading, AIRecommendation, SurgeLevel, Alert 
 } from '../types';
-import { INITIAL_STAFF, INITIAL_BEDS, INITIAL_PATIENTS, INITIAL_SUPPLIES, INDIA_STATES } from '../constants';
+import { INDIA_STATES } from '../constants';
+import { 
+    getPatients, getStaffStatus, getTasks, getEmergencies, getBeds, getSupplies, 
+    getSurgePredictions, getIoTDevices, getCCTVEvents,
+    subscribeToEmergencies, subscribeToTasks, subscribeToIoTReadings, subscribeToCCTV,
+    subscribeToSupplies, subscribeToSurgePredictions
+} from '../services/adminService';
 
 export type Pages = 'dashboard' | 'forecast' | 'cctvMonitoring' | 'iotMonitoring' | 'emergency' | 'staff' | 'patients' | 'tasks' | 'appointments' | 'supplies' | 'beds' | 'settings';
 
@@ -25,6 +31,7 @@ interface AppState {
   surgeLevel: SurgeLevel;
   patientInflow: { time: string; count: number }[];
   theme: 'dark' | 'light';
+  isLoading: boolean;
 }
 
 type AppAction = 
@@ -45,39 +52,36 @@ type AppAction =
   | { type: 'UPDATE_STAFF'; payload: StaffMember[] }
   | { type: 'UPDATE_IOT_STATUS'; payload: { deviceId: string; status: 'online' | 'offline' | 'error' } }
   | { type: 'UPDATE_SURGE_LEVEL'; payload: SurgeLevel }
-  | { type: 'TOGGLE_THEME' };
-
-const monitoredPatients = INITIAL_PATIENTS.filter(p => p.bedId).slice(0, 5);
+  | { type: 'TOGGLE_THEME' }
+  | { type: 'SET_LOADING'; payload: boolean };
 
 const initialState: AppState = {
-  patients: INITIAL_PATIENTS,
-  staff: INITIAL_STAFF,
+  patients: [],
+  staff: [],
   tasks: [],
   appointments: [],
   emergencies: [],
-  beds: INITIAL_BEDS,
-  forecast: INDIA_STATES.map(state => ({ region: state, riskLevel: Math.random() * 0.3 })),
-  forecastCommentary: "Analyzing surge patterns... A new forecast will be generated shortly.",
-  supplies: INITIAL_SUPPLIES,
+  beds: [],
+  forecast: INDIA_STATES.map(state => ({ region: state, riskLevel: 0 })),
+  forecastCommentary: "Initializing system data...",
+  supplies: [],
   cctvEvents: [],
-  iotDevices: monitoredPatients.flatMap(p => ([
-    { id: `iot-${p.id}-hr`, type: 'HeartRate', patientId: p.id, status: 'online', lastReading: p.vitals.heartRate, unit: 'bpm' },
-    { id: `iot-${p.id}-o2`, type: 'Oxygen', patientId: p.id, status: 'online', lastReading: p.vitals.oxygenLevel, unit: '%' },
-    { id: `iot-${p.id}-temp`, type: 'Temperature', patientId: p.id, status: 'online', lastReading: p.vitals.temperature, unit: '°F' },
-    { id: `iot-${p.id}-bp`, type: 'BPSystolic', patientId: p.id, status: 'online', lastReading: p.vitals.bpSystolic, unit: 'mmHg' },
-  ])),
+  iotDevices: [],
   iotReadings: {},
   aiRecommendations: [],
   alerts: [],
   surgeLevel: SurgeLevel.Normal,
-  patientInflow: Array.from({ length: 12 }, (_, i) => ({ time: `${i * 2}:00`, count: Math.floor(Math.random() * 5) })),
+  patientInflow: [],
   theme: 'dark',
+  isLoading: true,
 };
 
 const appReducer = (state: AppState, action: AppAction): AppState => {
   switch (action.type) {
     case 'SET_STATE':
       return { ...state, ...action.payload };
+    case 'SET_LOADING':
+        return { ...state, isLoading: action.payload };
     case 'ADD_PATIENT':
       return { ...state, patients: [...state.patients, action.payload] };
     case 'ADD_EMERGENCY':
@@ -156,8 +160,51 @@ const AppContext = createContext<AppContextProps>({
 export const AppProvider: React.FC<{children: React.ReactNode}> = ({ children }) => {
   const [state, dispatch] = useReducer(appReducer, initialState);
   
-  React.useEffect(() => {
+  useEffect(() => {
     document.documentElement.classList.add('dark');
+    
+    const fetchData = async () => {
+        try {
+            const [
+                patients, staff, tasks, emergencies, supplies, 
+                beds, forecast, iotDevices, cctvEvents
+            ] = await Promise.all([
+                getPatients(), getStaffStatus(), getTasks(), getEmergencies(),
+                getSupplies(), getBeds(), getSurgePredictions(),
+                getIoTDevices(), getCCTVEvents()
+            ]);
+
+            dispatch({ 
+                type: 'SET_STATE', 
+                payload: { 
+                    patients, staff, tasks, emergencies, supplies, 
+                    beds, forecast: forecast.length > 0 ? forecast : state.forecast, 
+                    iotDevices, cctvEvents, isLoading: false
+                } 
+            });
+        } catch (error) {
+            console.error("Failed to fetch initial data:", error);
+            dispatch({ type: 'SET_LOADING', payload: false });
+        }
+    };
+
+    fetchData();
+  }, []);
+
+  useEffect(() => {
+    // Real-time subscriptions
+    const subs = [
+        subscribeToEmergencies((e) => dispatch({ type: 'ADD_EMERGENCY', payload: e })),
+        subscribeToTasks((t) => dispatch({ type: 'ADD_TASK', payload: t })),
+        subscribeToIoTReadings((r) => dispatch({ type: 'ADD_IOT_READING', payload: r })),
+        subscribeToCCTV((e) => dispatch({ type: 'ADD_CCTV_EVENT', payload: e })),
+        subscribeToSupplies((s) => dispatch({ type: 'UPDATE_SUPPLIES', payload: s })),
+        subscribeToSurgePredictions((f) => dispatch({ type: 'UPDATE_FORECAST', payload: f }))
+    ];
+
+    return () => {
+        subs.forEach(sub => sub.unsubscribe());
+    };
   }, []);
 
   return (

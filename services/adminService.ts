@@ -2,7 +2,8 @@ import { supabase } from '../lib/supabase';
 import { 
   Patient, StaffMember, Task, Emergency, Bed, Supply, 
   IoTReading, CCTVEvent, ForecastData, StaffStatus, 
-  BedStatus, TaskStatus, EmergencySeverity, CCTVEventType
+  BedStatus, TaskStatus, EmergencySeverity, CCTVEventType,
+  IoTDevice
 } from '../types';
 
 // --- Mappers (DB Snake_case -> App CamelCase) ---
@@ -60,6 +61,15 @@ const mapSupply = (data: any): Supply => ({
   name: data.name,
   level: data.level,
   criticalThreshold: data.critical_threshold
+});
+
+const mapIoTDevice = (data: any): IoTDevice => ({
+    id: data.id,
+    type: data.type,
+    patientId: data.patient_id,
+    status: data.status,
+    lastReading: data.last_reading,
+    unit: data.unit
 });
 
 const mapIoTReading = (data: any): IoTReading => ({
@@ -157,6 +167,22 @@ export const getSurgePredictions = async (): Promise<ForecastData[]> => {
   return (data || []).map(mapForecast);
 };
 
+export const getIoTDevices = async (): Promise<IoTDevice[]> => {
+    const { data, error } = await supabase.from('iot_devices').select('*');
+    if (error) throw error;
+    return (data || []).map(mapIoTDevice);
+};
+
+export const getCCTVEvents = async (): Promise<CCTVEvent[]> => {
+    const { data, error } = await supabase
+        .from('cctv_events')
+        .select('*')
+        .order('timestamp', { ascending: false })
+        .limit(50);
+    if (error) throw error;
+    return (data || []).map(mapCCTVEvent);
+};
+
 // --- Realtime Subscriptions ---
 
 export const subscribeToEmergencies = (callback: (emergency: Emergency) => void) => {
@@ -180,9 +206,9 @@ export const subscribeToTasks = (callback: (task: Task) => void) => {
     .subscribe();
 };
 
-export const subscribeToIoT = (callback: (reading: IoTReading) => void) => {
+export const subscribeToIoTReadings = (callback: (reading: IoTReading) => void) => {
   return supabase
-    .channel('iot-channel')
+    .channel('iot-readings-channel')
     .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'iot_readings' }, (payload) => {
       callback(mapIoTReading(payload.new));
     })
@@ -199,6 +225,7 @@ export const subscribeToCCTV = (callback: (event: CCTVEvent) => void) => {
 };
 
 export const subscribeToSupplies = (callback: (supplies: Supply[]) => void) => {
+  // For supplies, we just refetch the whole list on any change for simplicity as the list is small
   return supabase
     .channel('supplies-channel')
     .on('postgres_changes', { event: '*', schema: 'public', table: 'supplies' }, async () => {
