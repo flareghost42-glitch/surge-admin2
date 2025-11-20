@@ -37,6 +37,7 @@ interface AppState {
 type AppAction = 
   | { type: 'SET_STATE'; payload: Partial<AppState> }
   | { type: 'ADD_PATIENT'; payload: Patient }
+  | { type: 'UPDATE_PATIENT'; payload: Patient }
   | { type: 'ADD_EMERGENCY'; payload: Emergency }
   | { type: 'ADD_TASK'; payload: Task }
   | { type: 'ADD_CCTV_EVENT'; payload: CCTVEvent }
@@ -48,6 +49,7 @@ type AppAction =
   | { type: 'SET_RECOMMENDATIONS'; payload: AIRecommendation[] }
   | { type: 'ADD_ALERT'; payload: Alert }
   | { type: 'UPDATE_BEDS'; payload: Bed[] }
+  | { type: 'UPDATE_BED'; payload: Bed }
   | { type: 'UPDATE_SUPPLIES'; payload: Supply[] }
   | { type: 'UPDATE_STAFF'; payload: StaffMember[] }
   | { type: 'UPDATE_IOT_STATUS'; payload: { deviceId: string; status: 'online' | 'offline' | 'error' } }
@@ -84,6 +86,11 @@ const appReducer = (state: AppState, action: AppAction): AppState => {
         return { ...state, isLoading: action.payload };
     case 'ADD_PATIENT':
       return { ...state, patients: [...state.patients, action.payload] };
+    case 'UPDATE_PATIENT':
+      return { 
+        ...state, 
+        patients: state.patients.map(p => p.id === action.payload.id ? action.payload : p) 
+      };
     case 'ADD_EMERGENCY':
       return { ...state, emergencies: [action.payload, ...state.emergencies].slice(0, 50) };
     case 'ADD_TASK':
@@ -121,6 +128,11 @@ const appReducer = (state: AppState, action: AppAction): AppState => {
     }
     case 'UPDATE_BEDS':
         return { ...state, beds: action.payload };
+    case 'UPDATE_BED':
+        return { 
+          ...state, 
+          beds: state.beds.map(b => b.id === action.payload.id ? action.payload : b) 
+        };
     case 'UPDATE_SUPPLIES':
         return { ...state, supplies: action.payload };
     case 'UPDATE_STAFF':

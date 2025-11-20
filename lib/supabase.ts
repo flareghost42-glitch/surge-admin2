@@ -35,12 +35,8 @@ const supabaseKey =
   getEnv('VITE_SUPABASE_ANON_KEY') || 
   getEnv('SUPABASE_ANON_KEY');
 
-if (!supabaseUrl || !supabaseKey) {
-  console.error('Supabase URL or Key is missing. Please check your environment configuration.');
-}
-
-// To avoid "supabaseUrl is required" error crashing the app, provide a fallback.
-// API calls will fail, but the app will render.
+// Fallback to prevent app crash if keys are missing. 
+// Real data fetching will fail, but the UI will render.
 const url = supabaseUrl || 'https://placeholder.supabase.co';
 const key = supabaseKey || 'placeholder';
 
