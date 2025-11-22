@@ -5,7 +5,7 @@ import { Pages, useAppContext } from '../context/AppContext';
 import { EmergencySeverity, TaskStatus } from '../types';
 import { 
   DashboardIcon, ForecastIcon, CctvIcon, IotIcon, EmergencyIcon, StaffIcon, PatientIcon, 
-  TaskIcon, AppointmentIcon, SupplyIcon, BedIcon, SettingsIcon, ChatIcon 
+  TaskIcon, AppointmentIcon, SupplyIcon, BedIcon, SettingsIcon, ChatIcon, BrainIcon
 } from './Icons';
 import Dock from './Dock';
 import { EmergencyAlert } from './EmergencyAlert';
@@ -20,6 +20,7 @@ interface LayoutProps {
 
 const navItems = [
   { id: 'dashboard', label: 'Dashboard', icon: DashboardIcon },
+  { id: 'surgeMind', label: 'Surge Mind', icon: BrainIcon },
   { id: 'forecast', label: 'Forecast', icon: ForecastIcon },
   { id: 'cctvMonitoring', label: 'CCTV Monitoring', icon: CctvIcon },
   { id: 'iotMonitoring', label: 'IoT Monitoring', icon: IotIcon },
@@ -43,7 +44,7 @@ const Layout: React.FC<LayoutProps> = ({ children, activePage, setActivePage }) 
       ...navItems.map(item => ({
           icon: <item.icon className="w-full h-full p-2" />,
           label: item.label,
-          onClick: () => setActivePage(item.id),
+          onClick: () => setActivePage(item.id as Pages),
           badgeCount: item.id === 'emergency' ? criticalEmergencies :
                       item.id === 'tasks' ? pendingTasks : undefined,
       })),

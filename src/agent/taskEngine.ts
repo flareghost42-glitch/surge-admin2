@@ -5,7 +5,7 @@ import { taskAgentPrompt } from "./prompts/taskAgentPrompt";
 
 interface AITaskResponse {
   title: string;
-  priority: 'low' | 'medium' | 'high';
+  priority: 'Low' | 'Medium' | 'High';
   room: string;
   description: string;
   patient_name: string;
@@ -13,48 +13,59 @@ interface AITaskResponse {
 
 /**
  * Finds the best staff member to assign a task to.
- * Logic: Active staff with the lowest number of pending tasks.
+ * Logic: Active staff with the lowest number of active (Pending/In-Progress) tasks.
  */
 async function getBestStaff(): Promise<string | null> {
   try {
-    // 1. Get all active staff
+    // 1. Get all active staff (Exclude offline)
     const { data: activeStaff, error: staffError } = await supabase
       .from('staff')
-      .select('id')
-      .neq('status', 'Offline'); // Consider Active or Busy, but not Offline
+      .select('id, name, status')
+      .neq('status', 'Offline');
 
-    if (staffError || !activeStaff || activeStaff.length === 0) return null;
+    if (staffError || !activeStaff || activeStaff.length === 0) {
+      console.warn("⚠️ No active staff available for assignment.");
+      return null;
+    }
 
-    // 2. Get task counts for these staff
-    const { data: pendingTasks, error: taskError } = await supabase
+    // 2. Get active task counts for these staff (Pending & In-Progress)
+    const { data: activeTasks, error: taskError } = await supabase
       .from('tasks')
-      .select('assigned_to')
-      .eq('status', 'Pending');
+      .select('assigned_to, status')
+      .in('status', ['Pending', 'In-Progress', 'pending', 'in-progress']);
 
-    if (taskError) return activeStaff[0].id; // Fallback
+    if (taskError) {
+      console.error("⚠️ Failed to fetch task load, defaulting to first staff member.");
+      return activeStaff[0].id;
+    }
 
-    // 3. Calculate load
+    // 3. Calculate workload
     const workload: Record<string, number> = {};
     activeStaff.forEach(s => workload[s.id] = 0);
     
-    pendingTasks?.forEach((t: any) => {
+    activeTasks?.forEach((t: any) => {
       if (workload[t.assigned_to] !== undefined) {
         workload[t.assigned_to]++;
       }
     });
 
-    // 4. Find min load
-    let bestStaffId = activeStaff[0].id;
-    let minLoad = Infinity;
+    // 4. Find staff with min load
+    // Sort by: Workload ASC -> Status (Active > Busy)
+    activeStaff.sort((a, b) => {
+        const loadA = workload[a.id];
+        const loadB = workload[b.id];
+        if (loadA !== loadB) return loadA - loadB;
+        
+        // Tie-breaker: Prefer 'Active' over 'Busy'
+        if (a.status === 'Active' && b.status !== 'Active') return -1;
+        if (b.status === 'Active' && a.status !== 'Active') return 1;
+        return 0;
+    });
 
-    for (const staff of activeStaff) {
-      if (workload[staff.id] < minLoad) {
-        minLoad = workload[staff.id];
-        bestStaffId = staff.id;
-      }
-    }
-
-    return bestStaffId;
+    const bestStaff = activeStaff[0];
+    console.log(`👨‍⚕️ Auto-Assignment: Selected ${bestStaff.name} (Load: ${workload[bestStaff.id]})`);
+    
+    return bestStaff.id;
 
   } catch (error) {
     console.error("Staff assignment error:", error);
@@ -68,7 +79,7 @@ async function getBestStaff(): Promise<string | null> {
 async function lookupPatientId(name: string): Promise<string | null> {
   if (!name) return null;
   
-  // Simple search, in a real app use strict ID matching or fuzzy search
+  // Simple search
   const { data } = await supabase
     .from('patients')
     .select('id')
@@ -83,7 +94,7 @@ async function lookupPatientId(name: string): Promise<string | null> {
  * Main engine entry point
  */
 export async function processEvent(event: any) {
-  console.log("⚙️ Agent processing event:", event);
+  console.log("⚙️ Agent processing event:", event.type);
 
   try {
     // 1. Call LLM with JSON mode = true
@@ -105,7 +116,7 @@ export async function processEvent(event: any) {
         return;
     }
 
-    console.log("🧠 AI Decided:", taskData);
+    console.log("🧠 AI Generated Task:", taskData.title);
 
     // 3. Enrich Data
     const patientId = await lookupPatientId(taskData.patient_name);
@@ -117,22 +128,24 @@ export async function processEvent(event: any) {
     }
 
     // 4. Insert Task
+    // Normalizing priority to match Enum
+    const priorityCap = taskData.priority.charAt(0).toUpperCase() + taskData.priority.slice(1) as 'Low' | 'Medium' | 'High';
+    
     const { error } = await supabase.from('tasks').insert({
       title: taskData.title,
       description: taskData.description,
-      priority: taskData.priority.charAt(0).toUpperCase() + taskData.priority.slice(1), // Capitalize
+      priority: priorityCap,
       room: taskData.room || event.room || 'Unknown',
       patient_id: patientId,
       assigned_to: assignedTo,
       status: 'Pending',
-      created_by_ai: true,
       created_at: new Date().toISOString()
     });
 
     if (error) {
       console.error("❌ Failed to insert AI task:", error);
     } else {
-      console.log(`✅ AI Task Created & Assigned to ${assignedTo}`);
+      console.log(`✅ Task "${taskData.title}" assigned to ${assignedTo}`);
     }
 
   } catch (error) {

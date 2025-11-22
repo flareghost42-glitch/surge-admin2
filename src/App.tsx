@@ -18,6 +18,7 @@ import Appointments from './pages/Appointments';
 import Supplies from './pages/Supplies';
 import Beds from './pages/Beds';
 import Settings from './pages/Settings';
+import SurgeMind from './pages/SurgeMind';
 
 const App: React.FC = () => {
   const [activePage, setActivePage] = useState<Pages>('dashboard');
@@ -34,6 +35,7 @@ const App: React.FC = () => {
   const PageComponent = useMemo(() => {
     switch (activePage) {
       case 'dashboard': return Dashboard;
+      case 'surgeMind': return SurgeMind;
       case 'forecast': return Forecast;
       case 'cctvMonitoring': return CCTVMonitoring;
       case 'iotMonitoring': return IoTMonitoring;
