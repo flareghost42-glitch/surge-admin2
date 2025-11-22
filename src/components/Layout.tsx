@@ -1,11 +1,11 @@
 
-import React from 'react';
+import React, { useState } from 'react';
 import Header from './Header';
 import { Pages, useAppContext } from '../context/AppContext';
 import { EmergencySeverity, TaskStatus } from '../types';
 import { 
   DashboardIcon, ForecastIcon, CctvIcon, IotIcon, EmergencyIcon, StaffIcon, PatientIcon, 
-  TaskIcon, AppointmentIcon, SupplyIcon, BedIcon, SettingsIcon 
+  TaskIcon, AppointmentIcon, SupplyIcon, BedIcon, SettingsIcon, ChatIcon 
 } from './Icons';
 import Dock from './Dock';
 import { EmergencyAlert } from './EmergencyAlert';
@@ -35,16 +35,25 @@ const navItems = [
 
 const Layout: React.FC<LayoutProps> = ({ children, activePage, setActivePage }) => {
   const { state } = useAppContext();
+  const [isChatOpen, setIsChatOpen] = useState(false);
   const criticalEmergencies = state.emergencies.filter(e => e.severity === EmergencySeverity.Critical).length;
   const pendingTasks = state.tasks.filter(t => t.status === TaskStatus.Pending).length;
 
-  const dockItems = navItems.map(item => ({
-      icon: <item.icon className="w-full h-full p-2" />,
-      label: item.label,
-      onClick: () => setActivePage(item.id),
-      badgeCount: item.id === 'emergency' ? criticalEmergencies :
-                  item.id === 'tasks' ? pendingTasks : undefined,
-  }));
+  const dockItems = [
+      ...navItems.map(item => ({
+          icon: <item.icon className="w-full h-full p-2" />,
+          label: item.label,
+          onClick: () => setActivePage(item.id),
+          badgeCount: item.id === 'emergency' ? criticalEmergencies :
+                      item.id === 'tasks' ? pendingTasks : undefined,
+      })),
+      {
+          icon: <ChatIcon className="w-full h-full p-2 text-blue-400" />,
+          label: 'AI Assistant',
+          onClick: () => setIsChatOpen(!isChatOpen),
+          badgeCount: undefined
+      }
+  ];
 
   return (
     <div className="flex flex-col h-screen bg-gray-900 text-gray-200 font-sans relative">
@@ -53,7 +62,7 @@ const Layout: React.FC<LayoutProps> = ({ children, activePage, setActivePage }) 
       <main className="flex-1 overflow-x-hidden overflow-y-auto bg-gray-900 p-4 sm:p-6 lg:p-8 pb-24">
         {children}
       </main>
-      <AIChat />
+      <AIChat isOpen={isChatOpen} onClose={() => setIsChatOpen(false)} />
       <Dock items={dockItems} className="bg-gray-800/30 backdrop-blur-md border-gray-700" />
     </div>
   );

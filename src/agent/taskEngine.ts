@@ -1,3 +1,4 @@
+
 import { supabase } from "../lib/supabase";
 import { runLLM } from "../lib/openrouter";
 import { taskAgentPrompt } from "./prompts/taskAgentPrompt";
@@ -85,15 +86,24 @@ export async function processEvent(event: any) {
   console.log("⚙️ Agent processing event:", event);
 
   try {
-    // 1. Call LLM
+    // 1. Call LLM with JSON mode = true
     const messages = taskAgentPrompt(event);
-    const rawResponse = await runLLM(messages);
+    const rawResponse = await runLLM(messages, "google/gemini-2.0-pro-exp-02-05:free", true);
     
-    if (!rawResponse) return;
+    if (!rawResponse || rawResponse.startsWith("Error") || rawResponse.startsWith("System Error")) {
+        console.warn("⚠️ AI Agent skipped event due to LLM error:", rawResponse);
+        return;
+    }
 
     // 2. Parse JSON (Handle potential markdown fences)
     const cleanJson = rawResponse.replace(/```json/g, '').replace(/```/g, '').trim();
-    const taskData: AITaskResponse = JSON.parse(cleanJson);
+    let taskData: AITaskResponse;
+    try {
+        taskData = JSON.parse(cleanJson);
+    } catch (e) {
+        console.error("❌ Failed to parse AI JSON:", cleanJson);
+        return;
+    }
 
     console.log("🧠 AI Decided:", taskData);
 

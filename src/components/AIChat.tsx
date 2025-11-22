@@ -1,14 +1,18 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { useAppContext } from '../context/AppContext';
-import { ChatIcon, SendIcon, XIcon, LogoIcon } from './Icons';
+import { SendIcon, XIcon, LogoIcon } from './Icons';
 import { runLLM, ChatMessage } from '../lib/openrouter';
 import { buildSystemContext } from '../agent/prompts/chatPrompt';
 import { AnimatePresence, motion } from 'framer-motion';
 
-const AIChat: React.FC = () => {
+interface AIChatProps {
+    isOpen: boolean;
+    onClose: () => void;
+}
+
+const AIChat: React.FC<AIChatProps> = ({ isOpen, onClose }) => {
     const { state } = useAppContext();
-    const [isOpen, setIsOpen] = useState(false);
     const [messages, setMessages] = useState<ChatMessage[]>([
         { role: 'assistant', content: 'Hello Admin. I am connected to the SurgeMind live stream. How can I assist with hospital operations today?' }
     ]);
@@ -41,12 +45,13 @@ const AIChat: React.FC = () => {
             
             const fullPayload = [systemMsg, ...history, userMsg];
             
+            // Call LLM in default text mode (jsonMode = false)
             const aiResponse = await runLLM(fullPayload);
             
             setMessages(prev => [...prev, { role: 'assistant', content: aiResponse }]);
         } catch (error) {
             console.error("Chat error:", error);
-            setMessages(prev => [...prev, { role: 'assistant', content: "I'm having trouble connecting to the neural network. Please try again." }]);
+            setMessages(prev => [...prev, { role: 'assistant', content: "I'm having trouble connecting to the neural network. Please check your connection or API key." }]);
         } finally {
             setIsTyping(false);
         }
@@ -60,14 +65,14 @@ const AIChat: React.FC = () => {
     };
 
     return (
-        <div className="fixed bottom-24 right-8 z-50 flex flex-col items-end">
+        <div className="fixed bottom-28 right-4 sm:right-8 z-50 flex flex-col items-end pointer-events-none">
             <AnimatePresence>
                 {isOpen && (
                     <motion.div
                         initial={{ opacity: 0, y: 20, scale: 0.95 }}
                         animate={{ opacity: 1, y: 0, scale: 1 }}
                         exit={{ opacity: 0, y: 20, scale: 0.95 }}
-                        className="mb-4 w-80 sm:w-96 bg-gray-800 border border-gray-700 rounded-2xl shadow-2xl overflow-hidden flex flex-col"
+                        className="w-80 sm:w-96 bg-gray-800 border border-gray-700 rounded-2xl shadow-2xl overflow-hidden flex flex-col pointer-events-auto"
                         style={{ height: '500px' }}
                     >
                         {/* Header */}
@@ -85,7 +90,7 @@ const AIChat: React.FC = () => {
                                 </div>
                             </div>
                             <button 
-                                onClick={() => setIsOpen(false)}
+                                onClick={onClose}
                                 className="text-gray-400 hover:text-white transition-colors"
                             >
                                 <XIcon className="w-5 h-5" />
@@ -145,13 +150,6 @@ const AIChat: React.FC = () => {
                     </motion.div>
                 )}
             </AnimatePresence>
-
-            <button
-                onClick={() => setIsOpen(!isOpen)}
-                className="bg-blue-600 hover:bg-blue-500 text-white p-4 rounded-full shadow-xl hover:shadow-blue-500/30 transition-all transform hover:scale-105 active:scale-95"
-            >
-                {isOpen ? <XIcon className="w-6 h-6" /> : <ChatIcon className="w-6 h-6" />}
-            </button>
         </div>
     );
 };
