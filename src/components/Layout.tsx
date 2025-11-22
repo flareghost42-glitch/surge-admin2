@@ -1,5 +1,5 @@
 
-import React, { useEffect } from 'react';
+import React from 'react';
 import Header from './Header';
 import { Pages, useAppContext } from '../context/AppContext';
 import { EmergencySeverity, TaskStatus } from '../types';
@@ -9,8 +9,6 @@ import {
 } from './Icons';
 import Dock from './Dock';
 import { EmergencyAlert } from './EmergencyAlert';
-import { autoGenerateEmergencyTask } from '../agent/autoEmergencyTask';
-import { supabase } from '../lib/supabase';
 
 
 interface LayoutProps {
@@ -46,25 +44,6 @@ const Layout: React.FC<LayoutProps> = ({ children, activePage, setActivePage }) 
       badgeCount: item.id === 'emergency' ? criticalEmergencies :
                   item.id === 'tasks' ? pendingTasks : undefined,
   }));
-
-  // Setup Agent Listener for Auto-Tasks
-  useEffect(() => {
-      const channel = supabase
-        .channel("emergency-auto-task-agent")
-        .on(
-          "postgres_changes",
-          { event: "INSERT", table: "emergencies", schema: "public" },
-          async (payload) => {
-            console.log("🤖 Agent detected emergency, generating task...");
-            await autoGenerateEmergencyTask(payload.new);
-          }
-        )
-        .subscribe();
-
-      return () => {
-          supabase.removeChannel(channel);
-      };
-  }, []);
 
   return (
     <div className="flex flex-col h-screen bg-gray-900 text-gray-200 font-sans relative">
