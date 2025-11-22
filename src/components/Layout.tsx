@@ -9,6 +9,7 @@ import {
 } from './Icons';
 import Dock from './Dock';
 import { EmergencyAlert } from './EmergencyAlert';
+import AIChat from './AIChat';
 
 
 interface LayoutProps {
@@ -52,6 +53,7 @@ const Layout: React.FC<LayoutProps> = ({ children, activePage, setActivePage }) 
       <main className="flex-1 overflow-x-hidden overflow-y-auto bg-gray-900 p-4 sm:p-6 lg:p-8 pb-24">
         {children}
       </main>
+      <AIChat />
       <Dock items={dockItems} className="bg-gray-800/30 backdrop-blur-md border-gray-700" />
     </div>
   );
